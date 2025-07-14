@@ -5,7 +5,9 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <dirent.h>
+#include <sys/syscall.h>
 
 typedef unsigned char int8;
 typedef unsigned short int int16;
@@ -24,7 +26,15 @@ typedef unsigned long long int int64;
 typedef int8 Dir[64];
 typedef int8 File[32];
 
+enum e_filetype {
+    file  = 1,
+    dir   = 2,
+    other = 3
+}
+typedef enum e_filetype Filetype;
+
 struct s_entry {
+    Filetype type;
     Dir dir;
     File file;
 };
@@ -35,9 +45,15 @@ struct s_database {
     int32 cap;
     int32 num;
 };
-typedef struct s_database Database;
 
-Database *mkdatabase(int32);
+typedef struct s_database Database;
+typedef bool (*function)(Entry);
+
+#define linux_dirent dirent
+
+Database *filter(Database*, function);
+Database *mkdatabase(void);
+bool iself(Entry);
 bool adddir(Database*, int8*);
 void addtodb(Database*, Entry);
 void destroydb(Database*);
