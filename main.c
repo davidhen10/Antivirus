@@ -35,8 +35,9 @@ bool iself(Entry e) {
 
 Database *filter(Database *input, function f) {
     Database *output;
-    Entry e;
+    Entry *p;
     int32 n;
+    bool predicate;
 
     output = mkdatabase();
     for(n = 0; n < input->num; n++) {
@@ -117,7 +118,8 @@ bool adddir(Database *db, int8 *path) {
     struct linux_dirent *p;
     int8 *p2;
     int8 buf[102400], tmp[64];
-    int8 *filename;
+    char *filename;
+    unsigned char *dtype;
 
     ret = open($c path, O_RDONLY | O_DIRECTORY);
     if (ret < 1)
@@ -144,13 +146,16 @@ bool adddir(Database *db, int8 *path) {
             if (onedot(filename) || twodots(filename))
                 continue;
 
-            if (p->d_type & DT_REG) {
+            dtype = p2 + p->d_reclen - 1;
+            if (*dtype & DT_REG) {
                 e.type = file;
+                e.lastscanned = 0;
                 strncpy($c e.dir, $c path, 63);
                 strncpy($c e.file, $c filename, 31);
                 addtodb(db, e);
-            } else if (p->d_type & DT_DIR) {
+            } else if (p*dtype == DT_DIR) {
                 e.type = dir;
+                e.lastscanned = 0;
                 strncpy($c e.dir, $c path, 63);
                 strncpy($c e.file, $c filename, 31);
                 addtodb(db, e);
@@ -165,14 +170,29 @@ bool adddir(Database *db, int8 *path) {
     return true;
 }
 
-int main(int argc, char *argv[]) {
-    Database *db, *db2; 
+Timestamp unixtime() {
+    int ret;
+    struct timespec ts;
+
+    ret = clock_gettime(CLOCK_REALTIME, &ts);
+    if (ret) {
+        return 0;
+
+    return (Timestamp)ts.tv_sec;
+    }
+}
+
+void prepare() {
+    Database *db, *db2;
 
     db = mkdatabase();
-    adddir(db, $1 argv[1]);
+    log("%s\n","Enumerating filesystem...");
+    adddir(db, $1 "/");
+    log("found %d files\nFiltering out non-executables...\n", db->num);
     db2 = filter(db, &iself);
-    showdb(db);
+    showdb(db2);
     destroydb(db2);
-    
+}
+int main(int argc, char *argv[]) {
     return 0;
 }
