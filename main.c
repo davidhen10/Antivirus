@@ -1,17 +1,24 @@
 #include "main.h"
 #include <string.h>
 
+State mkstate() {
+    State s = {0};
+
+    s.state.stage = unscanned;
+    return s;
+}
+
 bool iself(Entry e) {
     int32 fd;
     signed in ret;
-    int8 path[64];
+    int8 path[256];
     char buf[4];
 
-    if (e.type !- file)
+    if (e.type != file)
         return false;
     
-    zero(path, 64);
-    snprintf($c path, 63, "%s/%s", $c e.dir, $c e.file); 
+    zero(path, 256);
+    snprintf($c path, 255, "%s/%s", $c e.dir, $c e.file); 
     ret = open($c path, O_RDONLY);
     if (ret < 1)
         return false;
@@ -117,7 +124,7 @@ bool adddir(Database *db, int8 *path) {
     signed int ret;
     struct linux_dirent *p;
     int8 *p2;
-    int8 buf[102400], tmp[64];
+    int8 buf[102400], tmp[256];
     char *filename;
     unsigned char *dtype;
 
@@ -147,21 +154,26 @@ bool adddir(Database *db, int8 *path) {
                 continue;
 
             dtype = p2 + p->d_reclen - 1;
-            if (*dtype & DT_REG) {
+            if (*dtype == DT_REG) {
                 e.type = file;
+                e.state = mkstate();
                 e.lastscanned = 0;
-                strncpy($c e.dir, $c path, 63);
-                strncpy($c e.file, $c filename, 31);
+                strncpy($c e.dir, $c path, 255);
+                strncpy($c e.file, $c filename, 63);
                 addtodb(db, e);
             } else if (p*dtype == DT_DIR) {
                 e.type = dir;
+                e.state = mkstate();
+                e.state.stage = unstaged;
                 e.lastscanned = 0;
-                strncpy($c e.dir, $c path, 63);
-                strncpy($c e.file, $c filename, 31);
+                strncpy($c e.dir, $c path, 255);
+                strncpy($c e.file, $c filename, 63);
                 addtodb(db, e);
-                zero(tmp, 64);
-                snprintf($c tmp, 63, "%s/%s", $c path, $c e.file);
-                adddir(db, tmp);
+
+                zero(tmp, 256);
+                snprintf($c tmp, 255, "%s/%s", $c path, $c e.file);
+                if (strcmp($c tmp, $c path))
+                    adddir(db, tmp);
             }
         }
     } while(true);
@@ -187,12 +199,32 @@ void prepare() {
 
     db = mkdatabase();
     log("%s\n","Enumerating filesystem...");
-    adddir(db, $1 "/");
+    adddir(db, $1 "/tmp");
     log("found %d files\nFiltering out non-executables...\n", db->num);
     db2 = filter(db, &iself);
-    showdb(db2);
-    destroydb(db2);
+    log("%d left\n", db2->num);
+    
+    return db;
 }
 int main(int argc, char *argv[]) {
+    int32 fd;
+    signed int ret;
+    Database *db, *scandb;
+    int8 virusfile[] = $1 "./virii.def";
+
+    log("Antivirus version %s\n", Version);
+    db = prepare();
+    ret = open($c virusfile, O_RDONLY);
+    if (ret < 1) {
+        fprintf(stderr, "Error opening virus definitions file: %s\n", virusfile);
+        exit(-1);
+    } else {
+        fd = $4 ret;
+    }
+    log("%s", "Scanning...")
+    scandb = scan(*db, fd);
+    log("\r%s\n", "Scan complete.");
+    destroydb(db);
+
     return 0;
 }

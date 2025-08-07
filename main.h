@@ -16,6 +16,7 @@ typedef unsigned int int32;
 typedef unsigned long long int int64;
 
 #define Blocksize 50000
+#define Version "0.1"
 
 #define $1 (int8 *)
 #define $2 (int16)
@@ -28,8 +29,8 @@ typedef unsigned long long int int64;
 #define twodots(x) ((*(x) == '.') && (*(x + 1) == '.') && !(*(x + 2)))
 #define log(f, args...) printf(f, args); fflush(stdout)
 
-typedef int8 Dir[64];
-typedef int8 File[32];
+typedef int8 Dir[256];
+typedef int8 File[64];
 typedef unsigned long long int Timestamp;
 
 enum e_filetype {
@@ -39,11 +40,27 @@ enum e_filetype {
 }
 typedef enum e_filetype Filetype;
 
+enum e_state {
+    unstaged = 0,
+    unscanned = 1,
+    scanning = 2,
+    infected = 3,
+    clean = 4
+};
+typedef enum e_state estate;
+
+struct s_state {
+    estate stage;
+    int8 virus[32];
+};
+typedef struct s_state State;
+
 struct s_entry {
     Filetype type;
     Dir dir;
     File file;
     Timestamp lastscanned;
+    State state; 
 };
 typedef struct s_entry Entry;
 
@@ -58,7 +75,9 @@ typedef bool (*function)(Entry);
 
 #define linux_dirent dirent
 
-void prepare(void);
+State mkstate(void);
+Database *scan(Database, int32);
+Database *prepare(void);
 Timestamp unixtime(void);
 Database *filter(Database*, function);
 Database *mkdatabase(void);
