@@ -37,8 +37,28 @@ enum e_filetype {
     file  = 1,
     dir   = 2,
     other = 3
-}
+};
 typedef enum e_filetype Filetype;
+
+enum e_bufstate {
+    idle = 0,
+    newline = 1,
+    space = 2
+};
+typedef enum e_bufstate Bufstate;
+
+struct s_buffer {
+    int32 fd;
+    Bufstate state;
+    int64 filepos;
+    int8 *bufpos;
+    int8 *start;
+    int8 *end;
+    int8 *eol;
+    bool eof;
+    int8 buf[Bufsize];
+};
+typedef struct s_buffer Buffer;
 
 enum e_state {
     unstaged = 0,
@@ -76,7 +96,7 @@ typedef bool (*function)(Entry);
 #define linux_dirent dirent
 
 State mkstate(void);
-Database *scan(Database, int32);
+Database *scan(Database*, int32);
 Database *prepare(void);
 Timestamp unixtime(void);
 Database *filter(Database*, function);

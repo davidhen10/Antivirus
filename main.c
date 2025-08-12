@@ -4,7 +4,7 @@
 State mkstate() {
     State s = {0};
 
-    s.state.stage = unscanned;
+    s.stage = unscanned;
     return s;
 }
 
@@ -206,11 +206,135 @@ void prepare() {
     
     return db;
 }
+
+int8 readbyte(Buffer *buf) {
+    int8 tmp[2];
+    int8 c;
+    signed int ret;
+    int32 n, x;
+
+    if (buf->state == idle) {
+        zero(buf->buf, Bufsize);
+        ret = read($i buf->fd, buf->buf, (Bufsize-1));
+        if (ret < 1)
+            return 0;
+        else
+            n = $4 ret;
+        
+        if (n < (Bufsize-1)) {
+            buf->eof = true;
+        }
+
+        ret = lseek($i buf->fd, 0, SEEK_CUR);
+        if (ret == -1)
+            return 0;
+        else
+            buf->filepos = ret;
+
+        x = $i 0;
+        buf->bufpos = buf->start = buf->buf;
+        buf->end = buf->start + n - 1;
+
+        while (*buf->end != '\n') {
+            if (buf->filepos) {
+                buf->filepos--;
+                ret = lseek($i buf->fd, $i buf->filepos, SEEK_SET);
+                if (ret != -1) {
+                    *tmp = (int8)0;
+                    *(tmp+1) = (int8)0;
+                    ret = read($i buf->fd, $c tmp, 1);
+                    if (ret == 1) {
+                        x++;
+                        if (*tmp != '\n') {
+                            buf->filepos--;
+                            ret = lseek($i buf->fd, $i buf->filepos, SEEK_SET);
+                            if (ret != -1) {
+                                continue;
+                        } else {
+                            buf->end -= x;
+                            zero(buf->end, x);
+                        }
+                    }
+                }
+            }
+        }
+        buf->state = newline;
+    }
+    else if (buf->state == newline) {
+        if (buf->bufpos == buf->end)
+            return 0;
+        buf->bufpos++;
+        c = *buf->bufpos;
+
+        return c;
+    }
+    else if (buf->state == space) {
+        if (buf->bufpos == buf->start)
+            return 0;
+        buf->bufpos--;
+        c = *buf->bufpos;
+
+        return c;
+    }
+    }
+    return 0;
+}
+
+Database *scan(Database *db, int32 df) {
+    int8 c;
+    int8 virus[32];
+    int8 fingerprint[Bufsize];
+    Buffer buf = {0};
+    Database *output;
+
+    output = mkdatabase();
+    buf.fd = fd;
+    buf.state = idle;
+    buf.filepos = 0;
+    buf.bufpos = $1 0;
+    buf.start = $1 0;
+    buf.end = $1 0;
+    buf.eof = false;
+    buf.eol = $1 0;
+
+    c = readbyte(&buf);
+    if (!c) {
+        fprintf(stderr, "Error\n");
+        exit(-1);
+    }
+    if ((c == '\n') && (buf.state == newline)) {
+        *buf.bufpos = 0;
+        buf.state = space;
+        buf.eol = buf.bufpos;
+    } 
+    else if ((c == ' ') && (buf.state == space)) {
+        *buf.bufpos = 0;
+        zero(fingerprint, Bufsize);
+        strncpy($c (buf.bufpos+1), $i (Bufsize-1));
+        zero(virus, 32);
+        stncpy($c virus, $c buf.start, 31);
+
+        printtf("Virus: %s\nFingerprint: '%s'\n\n", $c virus, $c fingerprint);
+
+        buf->bufpos = buf->eol + 1;
+        if (buf.bufpos > buf.end) {
+            if (buf.eof) 
+                return db;
+            else {
+                buf.state = idle;
+            }
+        }
+        else 
+            buf.state = newline;
+    }
+    return db;
+}
+
 int main(int argc, char *argv[]) {
     int32 fd;
     signed int ret;
     Database *db, *scandb;
-    int8 virusfile[] = $1 "./virii.def";
+    int8 virusfile[] = "./virii.def";
 
     log("Antivirus version %s\n", Version);
     db = prepare();
