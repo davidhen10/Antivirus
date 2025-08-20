@@ -1,6 +1,38 @@
 #include "main.h"
 #include <string.h>
 
+int8 *parsehex(int8 *str) {
+    int16 n, size;
+    int8 *p, *ret, *retp;
+    int8 buf[3];
+
+    for (n = 0, p = str; *p; n++, p += 2);
+    size = (n+1);
+    ret = $1 malloc($i size);
+    assert(ret);
+    zero(ret, size);
+
+    for (p = str, retp = ret; *p; p += 2, retp++) {
+        zero(buf, 3);
+        *buf = *p;
+        *(buf+1) = *(p+1);
+        *retp = ascii2hex(buf);
+    }
+    return ret;
+}
+
+int8 ascii2hex(int8 *str) {
+    int8 a, b;
+    int8 res;
+    assert(!(*(str+2)));
+
+    a = a2h(*str);
+    b = a2h(*(str+1));
+    res = (a << 4) | b;
+
+    return res;
+}
+
 State mkstate() {
     State s = {0};
 
@@ -251,17 +283,21 @@ int8 readbyte(Buffer *buf) {
                             if (ret != -1) {
                                 continue;
                         } else {
-                            buf->end -= x;
-                            zero(buf->end, x);
+                            buf->end -= x - 1;
+                            zero(buf->end+1, x);
+                            break;
                         }
                     }
                 }
             }
         }
         buf->state = newline;
+        c = *buf->bufpos;
+        
+        return c;
     }
     else if (buf->state == newline) {
-        if (buf->bufpos == buf->end)
+        if (buf->bufpos > buf->end)
             return 0;
         buf->bufpos++;
         c = *buf->bufpos;
@@ -297,36 +333,38 @@ Database *scan(Database *db, int32 df) {
     buf.eof = false;
     buf.eol = $1 0;
 
-    c = readbyte(&buf);
-    if (!c) {
-        fprintf(stderr, "Error\n");
-        exit(-1);
-    }
-    if ((c == '\n') && (buf.state == newline)) {
-        *buf.bufpos = 0;
-        buf.state = space;
-        buf.eol = buf.bufpos;
-    } 
-    else if ((c == ' ') && (buf.state == space)) {
-        *buf.bufpos = 0;
-        zero(fingerprint, Bufsize);
-        strncpy($c (buf.bufpos+1), $i (Bufsize-1));
-        zero(virus, 32);
-        stncpy($c virus, $c buf.start, 31);
-
-        printtf("Virus: %s\nFingerprint: '%s'\n\n", $c virus, $c fingerprint);
-
-        buf->bufpos = buf->eol + 1;
-        if (buf.bufpos > buf.end) {
-            if (buf.eof) 
-                return db;
-            else {
-                buf.state = idle;
-            }
+    do {
+        c = readbyte(&buf);
+        if (!c) {
+            return db;
         }
-        else 
-            buf.state = newline;
-    }
+        if ((c == '\n') && (buf.state == newline)) {
+            *buf.bufpos = 0;
+            buf.state = space;
+            buf.eol = buf.bufpos;
+        } 
+        else if ((c == ' ') && (buf.state == space)) {
+            *buf.bufpos = 0;
+            zero(fingerprint, Bufsize);
+            strncpy($c (buf.bufpos+1), $i (Bufsize-1));
+            zero(virus, 32);
+            stncpy($c virus, $c buf.start, 31);
+
+            printtf("Virus: %s\nFingerprint: '%s'\n\n", $c virus, $c fingerprint);
+
+            buf->bufpos = buf->eol + 1;
+            if (buf.bufpos > buf.end) {
+                if (buf.eof) 
+                    return db;
+                else {
+                    buf.state = idle;
+                }
+            }
+            else 
+                buf.state = newline;
+        } 
+    } while (true);
+
     return db;
 }
 
@@ -335,6 +373,16 @@ int main(int argc, char *argv[]) {
     signed int ret;
     Database *db, *scandb;
     int8 virusfile[] = "./virii.def";
+    int8 hex[] = "5c3301dd98\x00\x00";
+    int8 *hexs;
+    int32 *p;
+    void *mem;
+
+    hex = parsehex(hex);
+    mem = hexs;
+    p = mem;
+    printf("0x%x\n", *p);
+    exit(0);
 
     log("Antivirus version %s\n", Version);
     db = prepare();

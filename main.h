@@ -28,6 +28,11 @@ typedef unsigned long long int int64;
 #define onedot(x) ((*(x) == '.') && !(*(x + 1)))
 #define twodots(x) ((*(x) == '.') && (*(x + 1) == '.') && !(*(x + 2)))
 #define log(f, args...) printf(f, args); fflush(stdout)
+#define a2h(x) (((x) > 0x2f) && ((x) < 0x3a)) ? \
+    ((x) - 0x30) : \
+    (((x) > 0x60) && ((x) < 0x67)) ? \
+    ((x) - 0x57) : \
+    0
 
 typedef int8 Dir[256];
 typedef int8 File[64];
@@ -95,6 +100,8 @@ typedef bool (*function)(Entry);
 
 #define linux_dirent dirent
 
+int8 *parsehex(int8*);
+int8 ascii2hex(int8*);
 State mkstate(void);
 Database *scan(Database*, int32);
 Database *prepare(void);
